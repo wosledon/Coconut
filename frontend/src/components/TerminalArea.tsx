@@ -216,6 +216,20 @@ export function TerminalArea({ connectionId }: Props) {
     return () => window.removeEventListener('resize', handle)
   }, [activeId, sessions])
 
+  // Fit when the terminal container itself resizes (for example when dragging the bottom panel)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const observer = new ResizeObserver(() => {
+      const active = terminalsRef.current.get(activeIdRef.current || '')
+      if (active) active.fitAddon.fit()
+    })
+
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
   const closeSession = useCallback((id: string) => {
     setSessions(prev => {
       const idx = prev.findIndex(s => s.id === id)
@@ -280,7 +294,7 @@ export function TerminalArea({ connectionId }: Props) {
       </div>
 
       {/* Terminal containers */}
-      <div className="flex-1 relative min-h-0" ref={containerRef}>
+      <div className="flex-1 relative min-h-0 overflow-hidden" ref={containerRef}>
         {sessions.map(s => (
           <div
             key={s.id}
