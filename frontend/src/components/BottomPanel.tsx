@@ -145,7 +145,7 @@ export function BottomPanel({
       </div>
 
       {/* Body */}
-      <div className="overflow-hidden transition-all duration-200" style={{ height: isOpen ? height : 0 }}>
+      <div className="overflow-hidden" style={{ height: isOpen ? height : 0 }}>
         {activeTab === 'ai' ? (
           <div className="flex h-full">
             {/* Session list */}
