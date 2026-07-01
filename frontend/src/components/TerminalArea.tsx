@@ -29,6 +29,13 @@ export function TerminalArea({ connectionId }: Props) {
   const terminalsRef = useRef<Map<string, Terminal>>(new Map())
   const initializedRef = useRef(false)
 
+  const log = (...args: any[]) => {
+    console.log(...args)
+    const arr = ((window as any).__debugLogs = (window as any).__debugLogs || [])
+    arr.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '))
+    if (arr.length > 200) arr.shift()
+  }
+
   // Keep refs in sync
   useEffect(() => { connectionIdRef.current = connectionId }, [connectionId])
   useEffect(() => { activeIdRef.current = activeId }, [activeId])
@@ -41,6 +48,7 @@ export function TerminalArea({ connectionId }: Props) {
       .build()
 
     hub.on('TerminalOutput', (sessionId: string, data: string) => {
+      log('[SignalR] TerminalOutput for', sessionId, 'len', data.length, 'data:', JSON.stringify(data))
       const term = terminalsRef.current.get(sessionId)
       if (term) {
         term.write(data)
@@ -53,7 +61,6 @@ export function TerminalArea({ connectionId }: Props) {
       if (!cid) return
       try {
         await hub.invoke('Connect', cid)
-        // Rejoin shell groups so background reading tasks can send to the new connection
         for (const sid of terminalsRef.current.keys()) {
           hub.invoke('RejoinShell', sid).catch(() => {})
         }
@@ -62,8 +69,15 @@ export function TerminalArea({ connectionId }: Props) {
       }
     })
 
-    hub.start().catch(console.error)
+    hub.start().then(() => {
+      log('[SignalR] terminal hub connected, state:', hub.state)
+      ;(window as any).__hubState = hub.state
+    }).catch(err => {
+      log('[SignalR] terminal hub start failed:', err)
+      ;(window as any).__hubState = 'failed: ' + String(err)
+    })
     hubRef.current = hub
+    ;(window as any).__hub = hub
 
     // Listen for "send to terminal" events from AI Chat
     const handleSendToTerminal = (e: Event) => {
@@ -129,13 +143,15 @@ export function TerminalArea({ connectionId }: Props) {
       if (!el) return
       terminal.open(el)
       fitAddon.fit()
+      terminal.focus()
 
       // Register input handler immediately after open so keystrokes are captured
       terminal.onData(data => {
         const cid = connectionIdRef.current
+        log('[xterm] onData for', id, 'cid', cid, 'data', JSON.stringify(data), 'hubState', hubRef.current?.state)
         if (cid && hubRef.current?.state === HubConnectionState.Connected) {
-          hubRef.current.invoke('SendInput', cid, id, data).catch(err =>
-            console.warn('SendInput failed:', err)
+          hubRef.current.invoke('SendInput', cid, id, data).then(() => log('[SignalR] SendInput ok')).catch(err =>
+            log('SendInput failed:', err)
           )
         }
       })
@@ -168,13 +184,17 @@ export function TerminalArea({ connectionId }: Props) {
 
       try {
         const cid = connectionIdRef.current!
+        log('[SignalR] invoking Connect', cid)
         await hubRef.current.invoke('Connect', cid)
+        log('[SignalR] Connect ok, invoking OpenShell', id, terminal.cols, terminal.rows)
         await hubRef.current.invoke('OpenShell', cid, id, terminal.cols, terminal.rows)
+        log('[SignalR] OpenShell ok')
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
+        log('[SignalR] Connect/OpenShell failed:', msg)
         terminal.writeln(`\r\n\x1b[31mSSH 连接失败: ${msg}\x1b[0m`)
       }
-    }, 100)
+    }, 0)
   }, [connectionId, counter, sessions.length])
 
   // Auto-create first session when connected

@@ -70,12 +70,8 @@ public class TerminalHub : Hub
                 {
                     while (!wrapper.IsDisposed && wrapper.Stream.CanRead)
                     {
-                        int bytesRead;
-                        lock (wrapper.Lock)
-                        {
-                            if (wrapper.IsDisposed || !wrapper.Stream.CanRead) break;
-                            bytesRead = wrapper.Stream.Read(buffer, 0, buffer.Length);
-                        }
+                        if (wrapper.IsDisposed || !wrapper.Stream.CanRead) break;
+                        int bytesRead = wrapper.Stream.Read(buffer, 0, buffer.Length);
                         if (bytesRead > 0)
                         {
                             var text = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -83,7 +79,6 @@ public class TerminalHub : Hub
                         }
                         else
                         {
-                            // No data available, yield briefly to avoid busy-wait
                             Thread.Sleep(10);
                         }
                     }
