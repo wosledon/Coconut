@@ -26,7 +26,7 @@ export function TerminalArea({ connectionId }: Props) {
   const hubRef = useRef<HubConnection | null>(null)
   const connectionIdRef = useRef(connectionId)
   const activeIdRef = useRef<string | null>(null)
-  const terminalsRef = useRef<Map<string, Terminal>>(new Map())
+  const terminalsRef = useRef<Map<string, TermSession>>(new Map())
   const initializedRef = useRef(false)
 
   const log = (...args: any[]) => {
@@ -49,9 +49,9 @@ export function TerminalArea({ connectionId }: Props) {
 
     hub.on('TerminalOutput', (sessionId: string, data: string) => {
       log('[SignalR] TerminalOutput for', sessionId, 'len', data.length, 'data:', JSON.stringify(data))
-      const term = terminalsRef.current.get(sessionId)
-      if (term) {
-        term.write(data)
+      const session = terminalsRef.current.get(sessionId)
+      if (session) {
+        session.terminal.write(data)
       }
     })
 
@@ -133,7 +133,7 @@ export function TerminalArea({ connectionId }: Props) {
     terminal.loadAddon(new WebLinksAddon())
 
     const session: TermSession = { id, name: `#${sessions.length + 1}`, terminal, fitAddon }
-    terminalsRef.current.set(id, terminal)
+    terminalsRef.current.set(id, session)
     setSessions(prev => [...prev, session])
     setActiveId(id)
 
@@ -222,8 +222,8 @@ export function TerminalArea({ connectionId }: Props) {
     if (!container) return
 
     const observer = new ResizeObserver(() => {
-      const active = terminalsRef.current.get(activeIdRef.current || '')
-      if (active) active.fitAddon.fit()
+      const session = terminalsRef.current.get(activeIdRef.current || '')
+      if (session) session.fitAddon.fit()
     })
 
     observer.observe(container)
