@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coconut — SSH + SFTP 运维工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&family=JetBrains+Mono&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            coconut: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', 800: '#166534' },
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+        }
+      }
+    }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .terminal-bg { background: #1e1e2e; }
+    .terminal-text { color: #a6e3a1; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .connection-active { background: #1f2937; border-left: 3px solid #22c55e; }
+    .rotate-180 { transform: rotate(180deg); }
+    .btab-btn { border-bottom: 2px solid transparent; }
+    .term-tab { min-width: 0; }
+    .term-tab:hover .term-tab-close { opacity: 1; }
+    .term-tab .term-tab-close { opacity: 0; }
+    .term-tab:hover .term-tab-close { opacity: 1; }
+    .skeleton { background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ===== Light Theme ===== */
+    [data-theme="light"] { --shell-bg: #ffffff; }
+    [data-theme="light"] .terminal-bg { background: #1a1b26; }
+    [data-theme="light"] .bg-gray-950 { background-color: #f8fafc; }
+    [data-theme="light"] .bg-gray-900 { background-color: #f1f5f9; }
+    [data-theme="light"] .bg-gray-900\/50 { background-color: rgba(241,245,249,0.5); }
+    [data-theme="light"] .bg-gray-900\/80 { background-color: rgba(241,245,249,0.8); }
+    [data-theme="light"] .bg-gray-850 { background-color: #e2e8f0; }
+    [data-theme="light"] .bg-gray-850\/50 { background-color: rgba(226,232,240,0.5); }
+    [data-theme="light"] .bg-gray-800 { background-color: #e2e8f0; }
+    [data-theme="light"] .bg-gray-800\/50 { background-color: rgba(226,232,240,0.5); }
+    [data-theme="light"] .bg-gray-800\/30 { background-color: rgba(226,232,240,0.3); }
+    [data-theme="light"] .bg-gray-700 { background-color: #cbd5e1; }
+    [data-theme="light"] .bg-gray-700\/50 { background-color: rgba(203,213,225,0.5); }
+    [data-theme="light"] .border-gray-800 { border-color: #cbd5e1; }
+    [data-theme="light"] .border-gray-700 { border-color: #94a3b8; }
+    [data-theme="light"] .border-gray-700\/50 { border-color: rgba(148,163,184,0.5); }
+    [data-theme="light"] .border-gray-600 { border-color: #94a3b8; }
+    [data-theme="light"] .divide-gray-700\/30 > * + * { border-color: rgba(148,163,184,0.3); }
+    [data-theme="light"] .divide-gray-700\/50 > * + * { border-color: rgba(148,163,184,0.5); }
+    [data-theme="light"] .text-gray-100 { color: #0f172a; }
+    [data-theme="light"] .text-gray-200 { color: #1e293b; }
+    [data-theme="light"] .text-gray-300 { color: #334155; }
+    [data-theme="light"] .text-gray-400 { color: #64748b; }
+    [data-theme="light"] .text-gray-500 { color: #94a3b8; }
+    [data-theme="light"] .text-gray-600 { color: #94a3b8; }
+    [data-theme="light"] .placeholder-gray-500::placeholder { color: #94a3b8; }
+    [data-theme="light"] .placeholder-gray-600::placeholder { color: #94a3b8; }
+    [data-theme="light"] .hover\:bg-gray-800:hover { background-color: #cbd5e1; }
+    [data-theme="light"] .hover\:bg-gray-800\/50:hover { background-color: rgba(203,213,225,0.5); }
+    [data-theme="light"] .hover\:bg-gray-700:hover { background-color: #94a3b8; }
+    [data-theme="light"] .hover\:bg-gray-850\/50:hover { background-color: rgba(226,232,240,0.5); }
+    [data-theme="light"] .hover\:bg-gray-850:hover { background-color: #e2e8f0; }
+    [data-theme="light"] .hover\:border-gray-500:hover { border-color: #64748b; }
+    [data-theme="light"] .bg-red-900\/10 { background-color: rgba(153,27,27,0.06); }
+    [data-theme="light"] .bg-red-900\/50 { background-color: rgba(153,27,27,0.08); }
+    [data-theme="light"] .border-red-900\/30 { border-color: rgba(153,27,27,0.15); }
+    [data-theme="light"] .hover\:bg-red-800\/70:hover { background-color: rgba(153,27,27,0.1); }
+    [data-theme="light"] .bg-black\/60 { background-color: rgba(0,0,0,0.25); }
+    [data-theme="light"] .bg-coconut-600 { background-color: #16a34a; }
+    [data-theme="light"] .bg-coconut-600\/20 { background-color: rgba(22,163,74,0.12); }
+    [data-theme="light"] .bg-coconut-600\/80 { background-color: rgba(22,163,74,0.85); }
+    [data-theme="light"] .text-coconut-400 { color: #16a34a; }
+    [data-theme="light"] .text-coconut-500 { color: #15803d; }
+    [data-theme="light"] .border-coconut-500 { border-color: #22c55e; }
+    [data-theme="light"] .border-coconut-600\/30 { border-color: rgba(22,163,74,0.3); }
+    [data-theme="light"] .hover\:bg-coconut-700:hover { background-color: #15803d; }
+    [data-theme="light"] .from-coconut-500 { --tw-gradient-from: #22c55e; }
+    [data-theme="light"] .to-emerald-700 { --tw-gradient-to: #047857; }
+    [data-theme="light"] .text-green-400 { color: #16a34a; }
+    [data-theme="light"] .bg-green-500 { background-color: #22c55e; }
+    [data-theme="light"] .text-red-400 { color: #dc2626; }
+    [data-theme="light"] .bg-red-500 { background-color: #ef4444; }
+    [data-theme="light"] .accent-coconut-500 { accent-color: #22c55e; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen overflow-hidden flex">
+
+  <!-- ===== 侧边栏 ===== -->
+  <aside class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
+    <!-- 标题 -->
+    <div class="h-14 flex items-center gap-2 px-4 border-b border-gray-800">
+      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-coconut-500 to-emerald-700 flex items-center justify-center text-xs font-bold text-white">C</div>
+      <span class="font-semibold text-base" data-i18n="sidebarTitle">Coconut</span>
+      <span class="text-[10px] text-gray-500 ml-auto">v0.1</span>
+    </div>
+
+    <!-- 搜索 -->
+    <div class="px-3 py-3">
+      <div class="relative">
+        <svg class="absolute left-2.5 top-2.5 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="searchInput" data-i18n="searchPlaceholder" oninput="filterConnections()" class="w-full bg-gray-800 rounded-lg pl-8 pr-3 py-2 text-sm text-gray-200 placeholder-gray-500 border border-gray-700 focus:outline-none focus:border-coconut-500 transition-colors" placeholder="搜索连接..." />
+      </div>
+    </div>
+
+    <!-- 连接列表 -->
+    <div class="flex-1 overflow-y-auto scrollbar-thin px-2">
+      <!-- 分组：生产 -->
+      <div class="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-500 font-medium uppercase tracking-wider">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        生产
+      </div>
+      <div class="connection-item cursor-pointer px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition" data-name="web-prod-01" onclick="selectConnection(this, 'web-prod-01')">
+        <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+        <span class="text-sm truncate">web-prod-01</span>
+        <span class="text-[10px] text-gray-600 ml-auto">22</span>
+      </div>
+      <div class="connection-item cursor-pointer px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition" data-name="db-prod-01" onclick="selectConnection(this, 'db-prod-01')">
+        <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+        <span class="text-sm truncate">db-prod-01</span>
+        <span class="text-[10px] text-gray-600 ml-auto">22</span>
+      </div>
+      <div class="connection-item cursor-pointer px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition" data-name="redis-prod-01" onclick="selectConnection(this, 'redis-prod-01')">
+        <span class="w-2 h-2 rounded-full bg-yellow-500 shrink-0"></span>
+        <span class="text-sm truncate">redis-prod-01</span>
+        <span class="text-[10px] text-gray-600 ml-auto">22</span>
+      </div>
+
+      <!-- 分组：测试 -->
+      <div class="flex items-center gap-1 px-2 py-1.5 mt-2 text-xs text-gray-500 font-medium uppercase tracking-wider">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        测试
+      </div>
+      <div class="connection-item cursor-pointer px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition" data-name="test-app-01" onclick="selectConnection(this, 'test-app-01')">
+        <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+        <span class="text-sm truncate">test-app-01</span>
+        <span class="text-[10px] text-gray-600 ml-auto">22</span>
+      </div>
+      <div class="connection-item cursor-pointer px-3 py-2 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition" data-name="test-db-01" onclick="selectConnection(this, 'test-db-01')">
+        <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+        <span class="text-sm truncate">test-db-01</span>
+        <span class="text-xs text-gray-500 ml-auto">离线</span>
+      </div>
+    </div>
+
+    <!-- 新建连接按钮 -->
+    <div class="p-3 border-t border-gray-800">
+      <button onclick="openModal('connectionModal')" class="w-full bg-coconut-600 hover:bg-coconut-700 text-white rounded-lg py-2 text-sm font-medium transition flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        新建连接
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===== 主区域 ===== -->
+  <main class="flex-1 flex flex-col min-w-0">
+
+    <!-- 顶部状态栏 -->
+    <header class="h-14 bg-gray-900 border-b border-gray-800 flex items-center px-5 gap-4 shrink-0">
+      <div id="currentConnection" class="flex items-center gap-2 text-sm">
+        <span class="text-gray-500" data-i18n="noServer">未选择服务器</span>
+      </div>
+      <div class="ml-auto flex items-center gap-3">
+        <button onclick="setTheme(currentTheme === 'light' ? 'dark' : 'light')" class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition px-2 py-1 rounded hover:bg-gray-800" title="切换主题">
+          <svg id="themeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        </button>
+        <button onclick="switchPage('settings')" class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition px-2 py-1 rounded hover:bg-gray-800">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          设置
+        </button>
+      </div>
+    </header>
+
+    <!-- ===== 内容区 ===== -->
+    <div class="flex-1 flex flex-col min-h-0">
+      <!-- 工作台页面 -->
+      <div id="pageWorkspace" class="flex-1 flex flex-col min-h-0">
+
+      <!-- ======== 上面板：监控（可收缩） ======== -->
+      <div id="monitorPanel" class="shrink-0 border-b border-gray-800">
+        <div onclick="toggleMonitor()" class="bg-gray-900 px-4 h-8 flex items-center gap-2 cursor-pointer select-none hover:bg-gray-850 transition">
+          <svg id="monitorChevron" class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+          <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          <span class="text-xs font-medium text-gray-400">资源监控</span>
+          <span id="monitorIndicator" class="hidden ml-2 flex items-center gap-3 text-[10px] text-gray-500">
+            <span class="flex items-center gap-1">CPU <span class="text-orange-400 font-mono">85%</span></span>
+            <span class="flex items-center gap-1">MEM <span class="text-coconut-400 font-mono">6.2/16G</span></span>
+            <span class="flex items-center gap-1">DSK <span class="text-blue-400 font-mono">128/512G</span></span>
+          </span>
+        </div>
+        <div id="monitorBody" class="overflow-hidden transition-all duration-200">
+          <div id="monitorEmpty" class="flex items-center justify-center h-20 text-gray-600 text-xs">
+            <span>连接服务器后查看实时资源监控</span>
+          </div>
+          <div id="monitorContent" class="hidden p-3 space-y-3">
+            <div class="grid grid-cols-4 gap-3">
+              <div class="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div class="flex items-center justify-between mb-1.5"><span class="text-[10px] text-gray-500 font-medium">CPU</span><span class="text-sm font-bold text-gray-100">85%</span></div>
+                <div class="w-full bg-gray-800 rounded-full h-1.5"><div class="bg-orange-500 h-1.5 rounded-full" style="width:85%"></div></div>
+              </div>
+              <div class="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div class="flex items-center justify-between mb-1.5"><span class="text-[10px] text-gray-500 font-medium">内存</span><span class="text-sm font-bold text-gray-100">6.2/16G</span></div>
+                <div class="w-full bg-gray-800 rounded-full h-1.5"><div class="bg-coconut-500 h-1.5 rounded-full" style="width:39%"></div></div>
+              </div>
+              <div class="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div class="flex items-center justify-between mb-1.5"><span class="text-[10px] text-gray-500 font-medium">磁盘</span><span class="text-sm font-bold text-gray-100">128/512G</span></div>
+                <div class="w-full bg-gray-800 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width:25%"></div></div>
+              </div>
+              <div class="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div class="flex items-center justify-between mb-1.5"><span class="text-[10px] text-gray-500 font-medium">网络</span><span class="text-sm font-bold text-gray-100">↓1.2M</span></div>
+                <div class="flex items-center gap-2 text-[10px] text-gray-500"><span>↑ 340K</span><span class="text-gray-700">|</span><span>eth0</span></div>
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <div class="flex-1 bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div class="flex items-center justify-between mb-2"><span class="text-[10px] text-gray-400 font-medium">CPU 趋势 (1h)</span></div>
+                <div class="h-16 flex items-end gap-[2px]">
+                  <div class="flex-1 bg-orange-500/60 rounded-t" style="height:45%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:52%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:38%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:65%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:70%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:55%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:42%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:48%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:35%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:58%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:72%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:60%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:75%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:68%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:80%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:85%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:78%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:62%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:50%"></div><div class="flex-1 bg-orange-500/60 rounded-t" style="height:44%"></div>
+                </div>
+              </div>
+              <div class="flex-1 bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div class="flex items-center justify-between mb-1"><span class="text-[10px] text-gray-400 font-medium">进程 Top5</span></div>
+                <div class="text-[10px] text-gray-400 font-mono space-y-0.5">
+                  <div class="flex justify-between"><span>node app.js</span><span>12.3%</span></div>
+                  <div class="flex justify-between"><span>mysqld</span><span>8.5%</span></div>
+                  <div class="flex justify-between"><span>nginx</span><span>2.1%</span></div>
+                  <div class="flex justify-between"><span>redis-server</span><span>1.2%</span></div>
+                  <div class="flex justify-between"><span>systemd</span><span>0.0%</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======== 中间：终端（主区域，支持多会话 Tab） ======== -->
+      <div class="flex-1 flex flex-col min-h-0">
+        <!-- 未连接 -->
+        <div id="terminalEmpty" class="flex-1 flex flex-col items-center justify-center text-gray-600">
+          <svg class="w-16 h-16 mb-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 9l3 3-3 3m5 0h3"/></svg>
+          <p class="text-lg font-medium mb-1">选择一个服务器开始</p>
+          <p class="text-sm">点击左侧连接列表，或新建一个 SSH 连接</p>
+        </div>
+        <!-- 已连接（多会话 Tab） -->
+        <div id="terminalContent" class="hidden flex-1 flex-col">
+          <!-- 会话 Tab 栏 -->
+          <div id="terminalTabs" class="bg-gray-900 border-b border-gray-800 flex items-center overflow-x-auto scrollbar-thin">
+            <!-- Tab 由 JS 动态生成 -->
+            <button onclick="addTerminalSession()" class="shrink-0 px-2 h-8 flex items-center text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition" title="新建会话">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            </button>
+          </div>
+          <!-- 会话内容容器 -->
+          <div id="terminalSessions" class="flex-1 relative">
+            <!-- 会话由 JS 动态生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ======== 拖拽调整手柄 ======== -->
+      <div id="resizeHandle" class="h-1.5 bg-gray-900 border-t border-b border-gray-800 cursor-row-resize hover:bg-coconut-600/30 hover:border-coconut-500/50 transition-colors shrink-0 relative group">
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span class="w-4 h-0.5 rounded bg-gray-500"></span>
+        </div>
+      </div>
+
+      <!-- ======== 下面板：AI Chat / SFTP（可收缩，Tab切换） ======== -->
+      <div id="bottomPanel" class="shrink-0 border-b border-gray-800">
+        <div class="bg-gray-900 flex items-center h-8">
+          <div onclick="toggleBottom()" class="flex items-center gap-2 px-3 h-full cursor-pointer select-none hover:bg-gray-850 transition">
+            <svg id="bottomChevron" class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <button data-btab-btn="ai" onclick="switchBottomTab('ai')" class="btab-btn px-3 h-full text-xs font-medium flex items-center gap-1.5 text-gray-400 hover:text-gray-200 border-r border-gray-800 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            AI Chat
+          </button>
+          <button data-btab-btn="sftp" onclick="switchBottomTab('sftp')" class="btab-btn px-3 h-full text-xs font-medium flex items-center gap-1.5 text-gray-400 hover:text-gray-200 border-r border-gray-800 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+            SFTP
+          </button>
+        </div>
+        <div id="bottomBody" class="overflow-hidden transition-all duration-200" style="height:280px">
+          <!-- AI Chat Tab -->
+          <div data-btab="ai" class="btab-active flex h-full">
+            <div class="flex-1 flex min-w-0">
+              <div class="w-48 bg-gray-900/50 border-r border-gray-800 flex flex-col shrink-0">
+                <div class="p-2 border-b border-gray-800">
+                  <button onclick="openModal('newChatModal')" class="w-full bg-coconut-600/80 hover:bg-coconut-700 text-white rounded-lg py-1 text-[10px] font-medium transition flex items-center justify-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    新会话
+                  </button>
+                </div>
+                <div class="flex-1 overflow-y-auto scrollbar-thin p-1.5 space-y-0.5">
+                  <div class="px-2 py-1.5 rounded bg-gray-800 cursor-pointer"><div class="text-xs text-gray-200 font-medium truncate">OOM 分析</div><div class="text-[10px] text-gray-600">2小时前</div></div>
+                  <div class="px-2 py-1.5 rounded hover:bg-gray-800/50 cursor-pointer"><div class="text-xs text-gray-300 truncate">Nginx 配置优化</div><div class="text-[10px] text-gray-600">昨天</div></div>
+                  <div class="px-2 py-1.5 rounded hover:bg-gray-800/50 cursor-pointer"><div class="text-xs text-gray-300 truncate">数据库备份脚本</div><div class="text-[10px] text-gray-600">3天前</div></div>
+                  <div class="px-2 py-1.5 rounded hover:bg-gray-800/50 cursor-pointer"><div class="text-xs text-gray-300 truncate">安全审计报告</div><div class="text-[10px] text-gray-600">06-20</div></div>
+                </div>
+              </div>
+              <div class="flex-1 flex flex-col min-w-0">
+                <div class="bg-gray-900 px-3 py-1.5 border-b border-gray-800 flex items-center gap-2 text-[10px] text-gray-500">
+                  <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span><span>GPT-4o (OpenAI)</span><span class="text-gray-700">|</span><span>web-prod-01</span><span class="text-gray-700">|</span>
+                  <button onclick="openModal('contextModal')" class="text-coconut-500 hover:text-coconut-400">附加上下文</button>
+                </div>
+                <div class="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-3">
+                  <div class="flex gap-2 justify-end"><div class="max-w-[75%] bg-coconut-600/20 border border-coconut-600/30 rounded-xl rounded-tr-sm px-3 py-2"><p class="text-xs text-gray-200">帮我分析一下这台服务器的 OOM 原因</p></div></div>
+                  <div class="flex gap-2">
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5">AI</div>
+                    <div class="max-w-[75%] bg-gray-800 rounded-xl rounded-tl-sm px-3 py-2">
+                      <p class="text-xs text-gray-200">OOM 原因是 <span class="text-red-400">Nginx worker 内存泄漏</span>。</p>
+                      <div class="mt-2 flex items-start gap-2 p-2 bg-gray-850 rounded-lg border border-coconut-600/30">
+                        <svg class="w-3.5 h-3.5 text-coconut-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <div><p class="text-[10px] text-gray-400">建议</p><code class="text-[10px] text-coconut-400 font-mono">systemctl restart nginx</code><div class="flex gap-2 mt-1"><button class="text-[10px] px-2 py-0.5 rounded bg-coconut-600/20 text-coconut-400">复制</button><button class="text-[10px] px-2 py-0.5 rounded bg-gray-700 text-gray-300">发送到终端</button></div></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 justify-end"><div class="max-w-[75%] bg-coconut-600/20 border border-coconut-600/30 rounded-xl rounded-tr-sm px-3 py-2"><p class="text-xs text-gray-200">写个脚本每天凌晨备份数据库，保留7天</p></div></div>
+                  <div class="flex gap-2">
+                    <div class="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5">AI</div>
+                    <div class="max-w-[75%] bg-gray-800 rounded-xl rounded-tl-sm px-3 py-2">
+                      <p class="text-xs text-gray-200 mb-1">备份脚本：</p>
+                      <div class="p-2 bg-gray-850 rounded-lg border border-gray-700 font-mono text-[10px] text-gray-300"><pre>#!/bin/bash
+mysqldump -u root coconut | gzip > /backup/$(date +%Y%m%d).sql.gz
+find /backup -name "*.sql.gz" -mtime +7 -delete</pre></div>
+                      <div class="flex gap-2 mt-1.5"><button class="text-[10px] px-2 py-0.5 rounded bg-coconut-600/20 text-coconut-400">复制</button><button class="text-[10px] px-2 py-0.5 rounded bg-gray-700 text-gray-300">发送到终端</button></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="bg-gray-900 border-t border-gray-800 p-2">
+                  <div class="flex gap-2">
+                    <div class="flex-1 bg-gray-800 rounded-lg border border-gray-700 focus-within:border-coconut-500 transition flex">
+                      <input class="flex-1 bg-transparent text-xs text-gray-200 placeholder-gray-600 px-3 py-1.5 focus:outline-none" placeholder="输入消息..." />
+                      <button class="px-2 text-gray-500 hover:text-gray-300"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></button>
+                    </div>
+                    <button class="bg-coconut-600 hover:bg-coconut-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium">发送</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- SFTP Tab -->
+          <div data-btab="sftp" class="hidden h-full">
+            <div id="sftpEmpty" class="flex items-center justify-center h-full text-gray-600 text-xs"><span>连接服务器后查看远程文件</span></div>
+            <div id="sftpContent" class="hidden h-full flex">
+              <div class="w-48 bg-gray-900/50 border-r border-gray-800 p-2 overflow-y-auto scrollbar-thin shrink-0">
+                <div class="text-[10px] text-gray-500 font-medium mb-1.5 uppercase tracking-wider">远程目录</div>
+                <div class="space-y-0.5 text-xs">
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer text-coconut-500 font-medium"><svg class="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>/</div>
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer ml-3"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>etc</div>
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer ml-3"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>var</div>
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer ml-3"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>home</div>
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer ml-6"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>deploy</div>
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer ml-6"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>logs</div>
+                  <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer ml-3"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>opt</div>
+                </div>
+              </div>
+              <div class="flex-1 flex flex-col">
+                <div class="bg-gray-900 px-3 py-1.5 text-xs text-gray-400 border-b border-gray-800 flex items-center gap-2">
+                  <span class="text-gray-500">路径:</span><span class="text-gray-200">/home/deploy/</span>
+                  <div class="ml-auto flex gap-1.5"><button class="text-[10px] px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 transition">上传</button><button class="text-[10px] px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 transition">新建</button><button class="text-[10px] px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 transition">刷新</button></div>
+                </div>
+                <div class="flex-1 overflow-y-auto scrollbar-thin">
+                  <table class="w-full text-xs">
+                    <thead class="text-[10px] text-gray-500 border-b border-gray-800 sticky top-0 bg-gray-950">
+                      <tr><th class="text-left px-3 py-1.5 font-medium w-6"></th><th class="text-left px-2 py-1.5 font-medium">名称</th><th class="text-right px-3 py-1.5 font-medium w-16">大小</th><th class="text-right px-3 py-1.5 font-medium w-24">修改时间</th></tr>
+                    </thead>
+                    <tbody class="text-gray-300">
+                      <tr class="hover:bg-gray-800/50 cursor-pointer"><td class="px-3 py-1.5"><svg class="w-3.5 h-3.5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg></td><td class="px-2 py-1.5">configs</td><td class="px-3 py-1.5 text-right text-gray-600">—</td><td class="px-3 py-1.5 text-right text-gray-600">06-27 14:32</td></tr>
+                      <tr class="hover:bg-gray-800/50 cursor-pointer"><td class="px-3 py-1.5"><svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></td><td class="px-2 py-1.5">docker-compose.yml</td><td class="px-3 py-1.5 text-right text-gray-600">2.3K</td><td class="px-3 py-1.5 text-right text-gray-600">06-27 14:30</td></tr>
+                      <tr class="hover:bg-gray-800/50 cursor-pointer"><td class="px-3 py-1.5"><svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></td><td class="px-2 py-1.5">nginx.conf</td><td class="px-3 py-1.5 text-right text-gray-600">1.1K</td><td class="px-3 py-1.5 text-right text-gray-600">06-26 09:15</td></tr>
+                      <tr class="hover:bg-gray-800/50 cursor-pointer"><td class="px-3 py-1.5"><svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></td><td class="px-2 py-1.5">deploy.sh</td><td class="px-3 py-1.5 text-right text-gray-600">4.7K</td><td class="px-3 py-1.5 text-right text-gray-600">06-25 18:42</td></tr>
+                      <tr class="hover:bg-gray-800/50 cursor-pointer"><td class="px-3 py-1.5"><svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></td><td class="px-2 py-1.5">.env.production</td><td class="px-3 py-1.5 text-right text-gray-600">0.8K</td><td class="px-3 py-1.5 text-right text-gray-600">06-24 11:03</td></tr>
+                      <tr class="hover:bg-gray-800/50 cursor-pointer"><td class="px-3 py-1.5"><svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg></td><td class="px-2 py-1.5">README.md</td><td class="px-3 py-1.5 text-right text-gray-600">3.2K</td><td class="px-3 py-1.5 text-right text-gray-600">06-20 10:00</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div><!-- /pageWorkspace -->
+
+      <!-- ===== 设置页面（Tab 管理） ===== -->
+      <div id="pageSettings" class="hidden flex-1 flex flex-col min-h-0">
+        <!-- 顶部栏 -->
+        <div class="bg-gray-900 border-b border-gray-800 px-5 h-12 flex items-center gap-3 shrink-0">
+          <button onclick="switchPage('workspace')" class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 transition px-2 py-1 rounded hover:bg-gray-800">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            返回
+          </button>
+          <span class="text-sm font-medium text-gray-200">设置</span>
+        </div>
+
+        <div class="flex-1 flex min-h-0">
+          <!-- 设置侧边 Tab 导航 -->
+          <nav class="w-44 bg-gray-900/50 border-r border-gray-800 flex flex-col shrink-0 overflow-y-auto scrollbar-thin py-2">
+            <button data-stab="general" onclick="switchSettingsTab('general')" class="stab-btn flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition hover:bg-gray-800/50">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+              通用
+            </button>
+            <button data-stab="terminal" onclick="switchSettingsTab('terminal')" class="stab-btn flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition hover:bg-gray-800/50">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3"/></svg>
+              终端
+            </button>
+            <button data-stab="ssh" onclick="switchSettingsTab('ssh')" class="stab-btn flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition hover:bg-gray-800/50">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              SSH
+            </button>
+            <button data-stab="ai" onclick="switchSettingsTab('ai')" class="stab-btn flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition hover:bg-gray-800/50">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              AI 提供商
+            </button>
+            <button data-stab="data" onclick="switchSettingsTab('data')" class="stab-btn flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition hover:bg-gray-800/50">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16"/></svg>
+              数据
+            </button>
+            <button data-stab="about" onclick="switchSettingsTab('about')" class="stab-btn flex items-center gap-2.5 px-4 py-2.5 text-sm text-left transition hover:bg-gray-800/50">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              关于
+            </button>
+          </nav>
+
+          <!-- 设置内容区 -->
+          <div class="flex-1 overflow-y-auto scrollbar-thin">
+            <!-- 通用 -->
+            <div data-stab-content="general" class="stab-content p-6 max-w-2xl">
+              <h3 class="text-base font-medium text-gray-200 mb-4">通用</h3>
+              <div class="bg-gray-800/50 rounded-xl border border-gray-700/50 divide-y divide-gray-700/30">
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">主题</p><p class="text-xs text-gray-500">界面外观</p></div>
+                  <select data-i18n-theme onchange="setTheme(this.value)" class="bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500"><option value="dark">深色模式</option><option value="light">浅色模式</option><option value="system">跟随系统</option></select>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">语言</p><p class="text-xs text-gray-500">界面语言</p></div>
+                  <select data-i18n-lang onchange="setLanguage(this.value)" class="bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500"><option value="zh-CN">中文</option><option value="en-US">English</option></select>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">启动时自动连接上次服务器</p><p class="text-xs text-gray-500">应用启动后自动恢复之前的连接</p></div>
+                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" checked><div class="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-coconut-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- 终端 -->
+            <div data-stab-content="terminal" class="stab-content hidden p-6 max-w-2xl">
+              <h3 class="text-base font-medium text-gray-200 mb-4">终端</h3>
+              <div class="bg-gray-800/50 rounded-xl border border-gray-700/50 divide-y divide-gray-700/30">
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">字体大小</p></div>
+                  <div class="flex items-center gap-3"><button class="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 text-sm">−</button><span class="text-sm text-gray-200 w-8 text-center font-mono">14</span><button class="w-7 h-7 rounded bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-300 text-sm">+</button></div>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">字体</p></div>
+                  <select class="bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500"><option>JetBrains Mono</option><option>Fira Code</option><option>Cascadia Code</option><option>Source Code Pro</option><option>Monaspace Neon</option></select>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">光标样式</p></div>
+                  <select class="bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500"><option>方块 (Block)</option><option>竖线 (Line)</option><option>下划线 (Underline)</option></select>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">滚动缓冲区</p><p class="text-xs text-gray-500">保留的历史行数</p></div>
+                  <input type="text" class="w-20 bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500 text-right font-mono" value="5000" />
+                </div>
+              </div>
+            </div>
+
+            <!-- SSH -->
+            <div data-stab-content="ssh" class="stab-content hidden p-6 max-w-2xl">
+              <h3 class="text-base font-medium text-gray-200 mb-4">SSH</h3>
+              <div class="bg-gray-800/50 rounded-xl border border-gray-700/50 divide-y divide-gray-700/30">
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">默认端口</p></div>
+                  <input type="text" class="w-20 bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500 text-right font-mono" value="22" />
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">连接超时</p><p class="text-xs text-gray-500">秒</p></div>
+                  <input type="text" class="w-20 bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500 text-right font-mono" value="30" />
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">Keep Alive 间隔</p><p class="text-xs text-gray-500">秒，0 表示禁用</p></div>
+                  <input type="text" class="w-20 bg-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500 text-right font-mono" value="60" />
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">自动重连</p><p class="text-xs text-gray-500">断开后自动尝试重新连接</p></div>
+                  <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer"><div class="w-9 h-5 bg-gray-700 rounded-full peer peer-checked:bg-coconut-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI 提供商 -->
+            <div data-stab-content="ai" class="stab-content hidden p-6 max-w-2xl">
+              <h3 class="text-base font-medium text-gray-200 mb-4">AI 提供商</h3>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-green-600/20 flex items-center justify-center"><span class="text-green-400 text-xs font-bold">O</span></div>
+                    <div><p class="text-sm text-gray-200 font-medium">OpenAI</p><p class="text-[10px] text-gray-500">GPT-4o / GPT-4o-mini</p></div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-xs text-green-400">在线</span>
+                    <span class="w-px h-4 bg-gray-700 mx-1"></span>
+                    <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" checked><div class="w-8 h-4 bg-gray-700 rounded-full peer peer-checked:bg-coconut-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div></label>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-purple-600/20 flex items-center justify-center"><span class="text-purple-400 text-xs font-bold">A</span></div>
+                    <div><p class="text-sm text-gray-200 font-medium">Anthropic</p><p class="text-[10px] text-gray-500">Claude 4 Sonnet / Claude 3.5 Haiku</p></div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-xs text-green-400">在线</span>
+                    <span class="w-px h-4 bg-gray-700 mx-1"></span>
+                    <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" checked><div class="w-8 h-4 bg-gray-700 rounded-full peer peer-checked:bg-coconut-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div></label>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center"><span class="text-blue-400 text-xs font-bold">O</span></div>
+                    <div><p class="text-sm text-gray-200 font-medium">Ollama (本地)</p><p class="text-[10px] text-gray-500">http://localhost:11434 · deepseek-coder</p></div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-xs text-green-400">在线</span>
+                    <span class="w-px h-4 bg-gray-700 mx-1"></span>
+                    <label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" class="sr-only peer" checked><div class="w-8 h-4 bg-gray-700 rounded-full peer peer-checked:bg-coconut-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-4"></div></label>
+                  </div>
+                </div>
+                <button class="w-full flex items-center justify-center gap-2 p-3 bg-gray-800/30 rounded-xl border border-dashed border-gray-600 text-gray-400 hover:text-gray-200 hover:border-gray-500 transition text-sm">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  添加提供商
+                </button>
+              </div>
+            </div>
+
+            <!-- 数据 -->
+            <div data-stab-content="data" class="stab-content hidden p-6 max-w-2xl">
+              <h3 class="text-base font-medium text-gray-200 mb-4">数据</h3>
+              <div class="bg-gray-800/50 rounded-xl border border-gray-700/50 divide-y divide-gray-700/30">
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">数据库路径</p><p class="text-xs text-gray-500 font-mono">~/.coconut/data.db</p></div>
+                  <button class="text-xs px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition">浏览</button>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">导出连接配置</p><p class="text-xs text-gray-500">JSON 格式</p></div>
+                  <button class="text-xs px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition">导出</button>
+                </div>
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div><p class="text-sm text-gray-200">导入连接配置</p><p class="text-xs text-gray-500">从 JSON 文件导入</p></div>
+                  <button class="text-xs px-3 py-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition">导入</button>
+                </div>
+              </div>
+              <div class="mt-6 bg-red-900/10 rounded-xl border border-red-900/30 px-4 py-3 flex items-center justify-between">
+                <div><p class="text-sm text-red-400 font-medium">清除所有数据</p><p class="text-xs text-gray-500">删除所有连接、AI 提供商、会话和设置</p></div>
+                <button class="text-xs px-4 py-2 rounded-lg bg-red-900/50 hover:bg-red-800/70 text-red-400 transition font-medium">清除</button>
+              </div>
+            </div>
+
+            <!-- 关于 -->
+            <div data-stab-content="about" class="stab-content hidden p-6 max-w-2xl">
+              <h3 class="text-base font-medium text-gray-200 mb-4">关于</h3>
+              <div class="bg-gray-800/50 rounded-xl border border-gray-700/50 px-4 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full bg-gradient-to-br from-coconut-500 to-emerald-700 flex items-center justify-center text-base font-bold text-white">C</div>
+                  <div><p class="text-sm text-gray-200 font-medium">Coconut v0.1.0</p><p class="text-xs text-gray-500">基于 ASP.NET Core 10 + React + Tailwind CSS</p></div>
+                  <span class="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-coconut-600/20 text-coconut-400">开发中</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ===== Modal: 新建连接 ===== -->
+  <div id="connectionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-gray-900 rounded-2xl w-[480px] border border-gray-700 shadow-2xl">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <h2 class="text-base font-semibold text-gray-100">新建连接</h2>
+        <button onclick="closeModal('connectionModal')" class="text-gray-500 hover:text-gray-300 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2"><label class="block text-xs text-gray-400 mb-1.5">连接名称</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="web-prod-01" /></div>
+          <div><label class="block text-xs text-gray-400 mb-1.5">主机地址</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="192.168.1.100" /></div>
+          <div><label class="block text-xs text-gray-400 mb-1.5">端口</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" value="22" /></div>
+          <div><label class="block text-xs text-gray-400 mb-1.5">用户名</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="root" /></div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">认证方式</label>
+            <select class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500">
+              <option>密码</option>
+              <option>密钥</option>
+              <option>SSH Agent</option>
+            </select>
+          </div>
+          <div class="col-span-2"><label class="block text-xs text-gray-400 mb-1.5">密码</label><input type="password" class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="••••••••" /></div>
+          <div><label class="block text-xs text-gray-400 mb-1.5">分组</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="生产/测试" /></div>
+          <div><label class="block text-xs text-gray-400 mb-1.5">标签</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="web, nginx" /></div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
+        <button onclick="closeModal('connectionModal')" class="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition">取消</button>
+        <button onclick="closeModal('connectionModal')" class="px-6 py-2 bg-coconut-600 hover:bg-coconut-700 text-white text-sm font-medium rounded-lg transition">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: 新建 AI 会话 ===== -->
+  <div id="newChatModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-gray-900 rounded-2xl w-[420px] border border-gray-700 shadow-2xl">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <h2 class="text-base font-semibold text-gray-100">新建 AI 会话</h2>
+        <button onclick="closeModal('newChatModal')" class="text-gray-500 hover:text-gray-300 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div><label class="block text-xs text-gray-400 mb-1.5">会话标题</label><input class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500" placeholder="例如: OOM 分析" /></div>
+        <div><label class="block text-xs text-gray-400 mb-1.5">AI 提供商 / 模型</label>
+          <select class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500">
+            <option>OpenAI — GPT-4o</option>
+            <option>OpenAI — GPT-4o-mini</option>
+            <option>Anthropic — Claude 4 Sonnet</option>
+            <option>Ollama — deepseek-coder</option>
+          </select>
+        </div>
+        <div><label class="block text-xs text-gray-400 mb-1.5">关联服务器 (可选)</label>
+          <select class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500">
+            <option value="">不关联</option>
+            <option>web-prod-01 (192.168.1.100)</option>
+            <option>db-prod-01 (192.168.1.101)</option>
+            <option>test-app-01 (10.0.0.10)</option>
+          </select>
+        </div>
+        <div><label class="block text-xs text-gray-400 mb-1.5">系统提示词 (可选)</label>
+          <textarea class="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 border border-gray-700 focus:outline-none focus:border-coconut-500 resize-none" rows="3" placeholder="你是一个资深 Linux 运维工程师..."></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
+        <button onclick="closeModal('newChatModal')" class="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition">取消</button>
+        <button onclick="closeModal('newChatModal')" class="px-6 py-2 bg-coconut-600 hover:bg-coconut-700 text-white text-sm font-medium rounded-lg transition">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: 附加上下文 ===== -->
+  <div id="contextModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-gray-900 rounded-2xl w-[460px] border border-gray-700 shadow-2xl">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <h2 class="text-base font-semibold text-gray-100">附加上下文</h2>
+        <button onclick="closeModal('contextModal')" class="text-gray-500 hover:text-gray-300 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      </div>
+      <div class="p-6 space-y-3">
+        <p class="text-xs text-gray-500 mb-1">选择要附加到 AI 消息中的上下文：</p>
+        <label class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750 transition"><input type="checkbox" class="rounded bg-gray-700 border-gray-600 text-coconut-500 focus:ring-coconut-500" checked /><div><p class="text-sm text-gray-200">服务器系统信息</p><p class="text-xs text-gray-500">OS / Kernel / Uptime / 发行版</p></div></label>
+        <label class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750 transition"><input type="checkbox" class="rounded bg-gray-700 border-gray-600 text-coconut-500 focus:ring-coconut-500" checked /><div><p class="text-sm text-gray-200">资源使用率</p><p class="text-xs text-gray-500">CPU / 内存 / 磁盘使用率</p></div></label>
+        <label class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750 transition"><input type="checkbox" class="rounded bg-gray-700 border-gray-600 text-coconut-500 focus:ring-coconut-500" /><div><p class="text-sm text-gray-200">终端选中文本</p><p class="text-xs text-gray-500">当前在终端中选中的输出内容</p></div></label>
+        <label class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750 transition"><input type="checkbox" class="rounded bg-gray-700 border-gray-600 text-coconut-500 focus:ring-coconut-500" /><div><p class="text-sm text-gray-200">指定文件内容</p><p class="text-xs text-gray-500">选择远程文件，将内容发送给 AI</p></div></label>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
+        <button onclick="closeModal('contextModal')" class="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition">取消</button>
+        <button onclick="closeModal('contextModal')" class="px-6 py-2 bg-coconut-600 hover:bg-coconut-700 text-white text-sm font-medium rounded-lg transition">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 页面切换
+    function switchPage(name) {
+      document.getElementById('pageWorkspace').classList.toggle('hidden', name !== 'workspace');
+      document.getElementById('pageWorkspace').classList.toggle('flex', name === 'workspace');
+      document.getElementById('pageSettings').classList.toggle('hidden', name !== 'settings');
+      document.getElementById('pageSettings').classList.toggle('flex', name === 'settings');
+      if (name === 'workspace') {
+        document.getElementById('terminalContent').classList.add('flex');
+      }
+      if (name === 'settings') {
+        switchSettingsTab('general');
+      }
+    }
+
+    // 设置 Tab 切换
+    function switchSettingsTab(name) {
+      document.querySelectorAll('.stab-btn').forEach(b => {
+        b.classList.remove('bg-gray-800', 'text-coconut-500', 'border-l-2', 'border-coconut-500');
+        b.classList.add('text-gray-400');
+      });
+      document.querySelectorAll('.stab-content').forEach(c => c.classList.add('hidden'));
+      const btn = document.querySelector(`[data-stab="${name}"]`);
+      if (btn) {
+        btn.classList.add('bg-gray-800', 'text-coconut-500', 'border-l-2', 'border-coconut-500');
+        btn.classList.remove('text-gray-400');
+      }
+      const content = document.querySelector(`[data-stab-content="${name}"]`);
+      if (content) content.classList.remove('hidden');
+    }
+
+    // 监控面板收缩
+    let monitorOpen = true;
+    function toggleMonitor() {
+      monitorOpen = !monitorOpen;
+      const body = document.getElementById('monitorBody');
+      const chevron = document.getElementById('monitorChevron');
+      if (monitorOpen) {
+        body.style.height = body.scrollHeight + 'px';
+        setTimeout(() => { body.style.height = ''; }, 10);
+        chevron.classList.remove('rotate-180');
+      } else {
+        body.style.height = body.scrollHeight + 'px';
+        requestAnimationFrame(() => { body.style.height = '0px'; });
+        chevron.classList.add('rotate-180');
+      }
+    }
+
+    // 下面板收缩
+    let bottomOpen = true;
+    let bottomPanelHeight = 280;
+    function toggleBottom() {
+      bottomOpen = !bottomOpen;
+      const body = document.getElementById('bottomBody');
+      const chevron = document.getElementById('bottomChevron');
+      if (bottomOpen) {
+        body.style.height = bottomPanelHeight + 'px';
+        chevron.classList.remove('rotate-180');
+      } else {
+        body.style.height = '0px';
+        chevron.classList.add('rotate-180');
+      }
+    }
+
+    // 拖拽调整下面板高度
+    (function initResize() {
+      const handle = document.getElementById('resizeHandle');
+      const body = document.getElementById('bottomBody');
+      const panel = document.getElementById('bottomPanel');
+      let isDragging = false;
+
+      handle.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const panelRect = panel.getBoundingClientRect();
+        const containerBottom = panel.parentElement.getBoundingClientRect().bottom;
+        const newHeight = containerBottom - e.clientY - handle.offsetHeight;
+        if (newHeight < 120) { // 最小高度
+          bottomPanelHeight = 120;
+        } else if (newHeight > containerBottom * 0.7) { // 最大高度不超过容器的70%
+          bottomPanelHeight = containerBottom * 0.7;
+        } else {
+          bottomPanelHeight = newHeight;
+        }
+        body.style.height = bottomPanelHeight + 'px';
+        if (bottomOpen) {
+          body.style.height = bottomPanelHeight + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+        }
+      });
+    })();
+
+    // 下面板 Tab 切换
+    function switchBottomTab(name) {
+      document.querySelectorAll('[data-btab]').forEach(t => t.classList.add('hidden'));
+      document.querySelectorAll('[data-btab]').forEach(t => t.classList.remove('btab-active'));
+      document.querySelectorAll('.btab-btn').forEach(b => b.classList.remove('text-coconut-500', 'border-b-2', 'border-coconut-500'));
+      const tab = document.querySelector(`[data-btab="${name}"]`);
+      if (tab) {
+        tab.classList.remove('hidden');
+        tab.classList.add('btab-active');
+      }
+      document.querySelector(`[data-btab-btn="${name}"]`).classList.add('text-coconut-500', 'border-b-2', 'border-coconut-500');
+    }
+
+    // Modal
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    document.querySelectorAll('.fixed').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); }));
+
+    // ===== 终端多会话管理 =====
+    let terminalSessions = [];
+    let activeSessionId = null;
+    let sessionCounter = 0;
+    let currentConnectionName = '';
+
+    const SESSION_TEMPLATES = [
+      { prompt: 'systemctl status nginx', output: [
+        '● nginx.service - A high performance web server and a reverse proxy server',
+        '     Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; preset: enabled)',
+        '     Active: active (running) since Sat 2026-06-27 14:32:01 UTC',
+        '       Docs: man:nginx(8)',
+        '    Process: 1234 ExecStart=/usr/sbin/nginx (code=exited, status=0/SUCCESS)',
+        '   Main PID: 1234 (nginx)',
+        '      Tasks: 3 (limit: 1108)',
+        '     Memory: 24.5M',
+        '        CPU: 0.125s',
+        '     CGroup: /system.slice/nginx.service',
+        '             ├─1234 "nginx: master process /usr/sbin/nginx"',
+        '             └─1235 "nginx: worker process"',
+        '● nginx.service — 运行正常'
+      ]},
+      { prompt: 'docker ps', output: [
+        'CONTAINER ID   IMAGE          COMMAND       STATUS         PORTS                    NAMES',
+        'a1b2c3d4e5f6   nginx:1.25     "nginx -g …"  Up 3 hours     0.0.0.0:80->80/tcp       web-nginx',
+        'f6e5d4c3b2a1   redis:7        "redis-server" Up 3 hours    0.0.0.0:6379->6379/tcp   cache-redis',
+        '9a8b7c6d5e4f   mysql:8.0      "docker-ent…" Up 3 hours    0.0.0.0:3306->3306/tcp   db-mysql'
+      ]},
+      { prompt: 'tail -f /var/log/nginx/access.log | head -20', output: [
+        '192.168.1.50 - - [28/Jun/2026:14:23:01 +0000] "GET /api/health HTTP/1.1" 200 12',
+        '192.168.1.50 - - [28/Jun/2026:14:23:02 +0000] "GET /api/users HTTP/1.1" 200 2431',
+        '10.0.0.5 - - [28/Jun/2026:14:23:05 +0000] "POST /api/order HTTP/1.1" 201 89',
+        '192.168.1.100 - - [28/Jun/2026:14:23:10 +0000] "GET /static/app.js HTTP/1.1" 304 0'
+      ]}
+    ];
+
+    function createTerminalTab(name, sessionId, index) {
+      const tabsContainer = document.getElementById('terminalTabs');
+      const addBtn = tabsContainer.querySelector('button:last-child');
+      const tab = document.createElement('div');
+      tab.className = `term-tab flex items-center gap-1.5 px-3 h-8 text-xs border-r border-gray-800 cursor-pointer select-none shrink-0 transition-colors ${sessionId === activeSessionId ? 'bg-gray-850 text-gray-200 border-b-2 border-b-coconut-500' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-850/50'}`;
+      tab.dataset.sessionId = sessionId;
+      tab.innerHTML = `
+        <span class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></span>
+        <span class="truncate max-w-28">${name}</span>
+        <span class="term-tab-num text-gray-600 text-[10px]">#${index}</span>
+        <span class="term-tab-close ml-1 p-0.5 rounded hover:bg-gray-700 hover:text-gray-300 text-gray-600" onclick="event.stopPropagation(); closeTerminalTab('${sessionId}')">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </span>
+      `;
+      tab.onclick = () => switchTerminalTab(sessionId);
+      tabsContainer.insertBefore(tab, addBtn);
+      return tab;
+    }
+
+    function createTerminalSessionContent(sessionId, templateIdx) {
+      const container = document.getElementById('terminalSessions');
+      const div = document.createElement('div');
+      div.className = `term-session absolute inset-0 flex flex-col ${sessionId === activeSessionId ? '' : 'hidden'}`;
+      div.dataset.sessionId = sessionId;
+      const tpl = SESSION_TEMPLATES[templateIdx % SESSION_TEMPLATES.length];
+      div.innerHTML = `
+        <div class="terminal-bg flex-1 p-4 font-mono text-sm leading-6 overflow-y-auto scrollbar-thin">
+          <div class="text-gray-500">[root@${currentConnectionName} ~]# <span class="text-gray-300">${tpl.prompt}</span></div>
+          ${tpl.output.map(line => `<div class="text-gray-400">     ${line}</div>`).join('')}
+          <div class="flex items-center gap-2 mt-3 text-gray-500"><span class="text-green-400">$</span><span class="animate-pulse w-2 h-5 bg-gray-400"></span></div>
+        </div>
+      `;
+      container.appendChild(div);
+      return div;
+    }
+
+    function switchTerminalTab(sessionId) {
+      activeSessionId = sessionId;
+      document.querySelectorAll('.term-tab').forEach(t => {
+        t.classList.remove('bg-gray-850', 'text-gray-200', 'border-b-2', 'border-b-coconut-500');
+        t.classList.add('text-gray-500', 'hover:text-gray-300', 'hover:bg-gray-850/50');
+      });
+      document.querySelectorAll('.term-session').forEach(s => s.classList.add('hidden'));
+      const tab = document.querySelector(`.term-tab[data-session-id="${sessionId}"]`);
+      if (tab) {
+        tab.classList.remove('text-gray-500', 'hover:text-gray-300', 'hover:bg-gray-850/50');
+        tab.classList.add('bg-gray-850', 'text-gray-200', 'border-b-2', 'border-b-coconut-500');
+      }
+      const session = document.querySelector(`.term-session[data-session-id="${sessionId}"]`);
+      if (session) session.classList.remove('hidden');
+    }
+
+    function closeTerminalTab(sessionId) {
+      const idx = terminalSessions.findIndex(s => s.id === sessionId);
+      if (idx === -1 || terminalSessions.length <= 1) return;
+      terminalSessions.splice(idx, 1);
+      const tab = document.querySelector(`.term-tab[data-session-id="${sessionId}"]`);
+      const session = document.querySelector(`.term-session[data-session-id="${sessionId}"]`);
+      if (tab) tab.remove();
+      if (session) session.remove();
+      // 重新编号
+      document.querySelectorAll('.term-tab .term-tab-num').forEach((el, i) => {
+        el.textContent = '#' + (i + 1);
+      });
+      if (activeSessionId === sessionId) {
+        const nextIdx = Math.min(idx, terminalSessions.length - 1);
+        switchTerminalTab(terminalSessions[nextIdx].id);
+      }
+    }
+
+    function addTerminalSession() {
+      sessionCounter++;
+      const sessionId = 'term-' + sessionCounter;
+      const templateIdx = terminalSessions.length;
+      terminalSessions.push({ id: sessionId, name: currentConnectionName });
+      if (terminalSessions.length === 1) {
+        activeSessionId = sessionId;
+      }
+      createTerminalTab(currentConnectionName, sessionId, terminalSessions.length);
+      createTerminalSessionContent(sessionId, templateIdx);
+      switchTerminalTab(sessionId);
+      // 滚动到新 Tab
+      const tabsContainer = document.getElementById('terminalTabs');
+      tabsContainer.scrollLeft = tabsContainer.scrollWidth;
+    }
+
+    // 连接选择
+    function selectConnection(el, name) {
+      document.querySelectorAll('.connection-item').forEach(c => c.classList.remove('connection-active'));
+      el.classList.add('connection-active');
+      currentConnectionName = name;
+      document.getElementById('currentConnection').innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-gray-200 font-medium">${name}</span><span class="text-xs text-gray-500">root@192.168.1.100:22</span>`;
+
+      // 显示终端内容
+      document.getElementById('terminalEmpty').classList.add('hidden');
+      document.getElementById('terminalContent').classList.remove('hidden');
+      document.getElementById('terminalContent').classList.add('flex');
+
+      // 显示监控内容
+      document.getElementById('monitorEmpty').classList.add('hidden');
+      document.getElementById('monitorContent').classList.remove('hidden');
+      document.getElementById('monitorIndicator').classList.remove('hidden');
+
+      // 显示 SFTP 内容
+      document.getElementById('sftpEmpty').classList.add('hidden');
+      document.getElementById('sftpContent').classList.remove('hidden');
+
+      // 初始化终端会话（如果还没有）
+      if (terminalSessions.length === 0) {
+        addTerminalSession();
+      }
+    }
+
+    // 搜索过滤
+    function filterConnections() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      document.querySelectorAll('.connection-item').forEach(el => {
+        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+      });
+    }
+
+    // 初始化下面板 Tab 选中状态
+    document.querySelector('[data-btab-btn="ai"]').classList.add('text-coconut-500', 'border-b-2', 'border-coconut-500');
+
+    // ===== 国际化词典 =====
+    const i18n = {
+      'zh-CN': {
+        title: 'Coconut — SSH + SFTP 运维工具',
+        sidebarTitle: 'Coconut',
+        searchPlaceholder: '搜索连接...',
+        newConnection: '新建连接',
+        noServer: '未选择服务器',
+        aiProvider: 'AI 提供商',
+        settings: '设置',
+        monitor: '资源监控',
+        terminal: '终端',
+        sftp: 'SFTP',
+        aiChat: 'AI Chat',
+        selectServer: '选择一个服务器开始',
+        selectServerHint: '点击左侧连接列表，或新建一个 SSH 连接',
+        fileBrowser: '文件浏览',
+        fileBrowserHint: '选择一个服务器连接后查看远程文件',
+        resourceMonitor: '资源监控',
+        resourceMonitorHint: '连接服务器后查看实时资源监控',
+        newSession: '新会话',
+        connectionName: '连接名称',
+        host: '主机地址',
+        port: '端口',
+        username: '用户名',
+        authType: '认证方式',
+        password: '密码',
+        group: '分组',
+        tags: '标签',
+        save: '保存',
+        cancel: '取消',
+        theme: '主题',
+        themeDark: '深色模式',
+        themeLight: '浅色模式',
+        themeSystem: '跟随系统',
+        language: '语言',
+        langZh: '中文',
+        langEn: 'English',
+        autoReconnect: '启动时自动连接上次服务器',
+        autoReconnectDesc: '应用启动后自动恢复之前的连接',
+        fontFamily: '字体',
+        fontSize: '字体大小',
+        cursorStyle: '光标样式',
+        scrollback: '滚动缓冲区',
+        scrollbackDesc: '保留的历史行数',
+        defaultPort: '默认端口',
+        connectionTimeout: '连接超时',
+        keepAlive: 'Keep Alive 间隔',
+        autoReconnectSsh: '自动重连',
+        autoReconnectSshDesc: '断开后自动尝试重新连接',
+        dbPath: '数据库路径',
+        exportConfig: '导出连接配置',
+        importConfig: '导入连接配置',
+        clearData: '清除所有数据',
+        clearDataDesc: '删除所有连接、AI 提供商、会话和设置',
+        about: '关于',
+        version: 'Coconut v0.1.0',
+        versionDesc: '基于 ASP.NET Core 10 + React + Tailwind CSS',
+        devStatus: '开发中',
+        back: '返回',
+        send: '发送',
+        copy: '复制',
+        sendToTerminal: '发送到终端',
+        disconnect: '断开',
+        upload: '上传',
+        newDir: '新建目录',
+        refresh: '刷新',
+        searchProcesses: '搜索进程...',
+        inputMessage: '输入消息...',
+        sessionTime: '会话时长',
+        chattingWith: 'AI 聊天',
+      },
+      'en-US': {
+        title: 'Coconut — SSH & SFTP Toolkit',
+        sidebarTitle: 'Coconut',
+        searchPlaceholder: 'Search connections...',
+        newConnection: 'New Connection',
+        noServer: 'No server selected',
+        aiProvider: 'AI Provider',
+        settings: 'Settings',
+        monitor: 'Monitor',
+        terminal: 'Terminal',
+        sftp: 'SFTP',
+        aiChat: 'AI Chat',
+        selectServer: 'Select a server to start',
+        selectServerHint: 'Click a connection or create a new SSH connection',
+        fileBrowser: 'File Browser',
+        fileBrowserHint: 'Connect to a server to browse remote files',
+        resourceMonitor: 'Resource Monitor',
+        resourceMonitorHint: 'Connect to a server to view real-time metrics',
+        newSession: 'New Session',
+        connectionName: 'Connection Name',
+        host: 'Host',
+        port: 'Port',
+        username: 'Username',
+        authType: 'Auth Type',
+        password: 'Password',
+        group: 'Group',
+        tags: 'Tags',
+        save: 'Save',
+        cancel: 'Cancel',
+        theme: 'Theme',
+        themeDark: 'Dark Mode',
+        themeLight: 'Light Mode',
+        themeSystem: 'Follow System',
+        language: 'Language',
+        langZh: '中文',
+        langEn: 'English',
+        autoReconnect: 'Auto-reconnect on startup',
+        autoReconnectDesc: 'Restore previous connections on app start',
+        fontFamily: 'Font Family',
+        fontSize: 'Font Size',
+        cursorStyle: 'Cursor Style',
+        scrollback: 'Scrollback',
+        scrollbackDesc: 'Lines of history to retain',
+        defaultPort: 'Default Port',
+        connectionTimeout: 'Connection Timeout',
+        keepAlive: 'Keep Alive Interval',
+        autoReconnectSsh: 'Auto Reconnect',
+        autoReconnectSshDesc: 'Automatically reconnect after disconnection',
+        dbPath: 'Database Path',
+        exportConfig: 'Export Connections',
+        importConfig: 'Import Connections',
+        clearData: 'Clear All Data',
+        clearDataDesc: 'Delete all connections, providers, sessions and settings',
+        about: 'About',
+        version: 'Coconut v0.1.0',
+        versionDesc: 'Built with ASP.NET Core 10 + React + Tailwind CSS',
+        devStatus: 'In Development',
+        back: 'Back',
+        send: 'Send',
+        copy: 'Copy',
+        sendToTerminal: 'Send to Terminal',
+        disconnect: 'Disconnect',
+        upload: 'Upload',
+        newDir: 'New Folder',
+        refresh: 'Refresh',
+        searchProcesses: 'Search processes...',
+        inputMessage: 'Type a message...',
+        sessionTime: 'Session',
+        chattingWith: 'Chat',
+      }
+    };
+
+    // 当前语言 & 主题
+    let currentLang = localStorage.getItem('coconut-lang') || 'zh-CN';
+    let currentTheme = localStorage.getItem('coconut-theme') || 'dark';
+
+    function applyTheme(theme) {
+      currentTheme = theme;
+      if (theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+      localStorage.setItem('coconut-theme', theme);
+    }
+
+    function applyLanguage(lang) {
+      currentLang = lang;
+      document.documentElement.lang = lang;
+      localStorage.setItem('coconut-lang', lang);
+      // 更新所有 data-i18n 元素
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n;
+        if (i18n[lang] && i18n[lang][key]) {
+          if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            el.placeholder = i18n[lang][key];
+          } else {
+            el.textContent = i18n[lang][key];
+          }
+        }
+      });
+      document.title = i18n[lang].title;
+    }
+
+    function setTheme(theme) {
+      applyTheme(theme);
+      // 更新设置页面下拉
+      const sel = document.querySelector('#pageSettings select[data-i18n-theme]');
+      if (sel) {
+        const map = { dark: 0, light: 1, system: 2 };
+        sel.selectedIndex = map[theme] || 0;
+      }
+    }
+
+    function setLanguage(lang) {
+      applyLanguage(lang);
+      // 更新设置页面下拉
+      const sel = document.querySelector('#pageSettings select[data-i18n-lang]');
+      if (sel) {
+        sel.selectedIndex = lang === 'zh-CN' ? 0 : 1;
+      }
+    }
+
+    // 初始化主题和语言
+    applyTheme(currentTheme);
+    applyLanguage(currentLang);
+  </script>
+</body>
+</html>

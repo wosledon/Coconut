@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --color-coconut-50: #f0fdf4;
+  --color-coconut-100: #dcfce7;
+  --color-coconut-400: #4ade80;
+  --color-coconut-500: #22c55e;
+  --color-coconut-600: #16a34a;
+  --color-coconut-700: #15803d;
+  --color-coconut-800: #166534;
+}
+
+/* Scrollbar */
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Terminal */
+.terminal-bg { background: #1e1e2e; }
+
+/* Connection active state */
+.connection-active { background: #1f2937; border-left: 3px solid #22c55e; }
+
+/* Terminal tabs */
+.term-tab:hover .term-tab-close { opacity: 1; }
+.term-tab .term-tab-close { opacity: 0; }
+
+/* Bottom tabs */
+.btab-btn { border-bottom: 2px solid transparent; }
+
+/* Animations */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
