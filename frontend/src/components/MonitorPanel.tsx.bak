@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { HubConnectionBuilder, HubConnection, HubConnectionState } from '@microsoft/signalr'
-import { ChevronUp, BarChart3, Server, User } from 'lucide-react'
+import { ChevronUp, BarChart3, Cpu, HardDrive, Wifi, Activity } from 'lucide-react'
 import type { ServerMetrics, ProcessInfo } from '../types'
 
 interface Props {
@@ -50,6 +50,7 @@ export function MonitorPanel({ isOpen, onToggle, connectionId }: Props) {
       setCpuHistory([])
     })
 
+    // Restart monitoring after reconnection
     hub.onreconnected(async () => {
       try {
         await hub.invoke('StartMonitoring', connectionId, 2000)
@@ -69,6 +70,12 @@ export function MonitorPanel({ isOpen, onToggle, connectionId }: Props) {
     hubRef.current = hub
     return () => { hub.stop() }
   }, [connectionId])
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)}K`
+    return `${(bytes / 1048576).toFixed(1)}M`
+  }
 
   const memPercent = metrics ? Math.round((metrics.usedMemoryMB / metrics.totalMemoryMB) * 100) : 0
   const diskPercent = metrics ? parseInt(metrics.diskUsagePercent) || 0 : 0
@@ -101,13 +108,50 @@ export function MonitorPanel({ isOpen, onToggle, connectionId }: Props) {
           </div>
         ) : (
           <div className="p-3 space-y-3">
+            {/* Metric cards */}
             <div className="grid grid-cols-4 gap-3">
-              <SystemCard metrics={metrics} />
-              <MetricCard label="CPU" value={`${metrics.cpuUsage.toFixed(0)}%`} percent={metrics.cpuUsage} color="bg-orange-500">
-                <MiniSpark data={cpuHistory} color="bg-orange-500" />
-              </MetricCard>
-              <MemoryCard metrics={metrics} percent={memPercent} />
-              <DiskCard metrics={metrics} percent={diskPercent} />
+              <MetricCard label="CPU" value={`${metrics.cpuUsage.toFixed(0)}%`} percent={metrics.cpuUsage} color="bg-orange-500" />
+              <MetricCard label="内存" value={`${metrics.usedMemoryMB}/${metrics.totalMemoryMB}M`} percent={memPercent} color="bg-coconut-500" />
+              <MetricCard label="磁盘" value={`${metrics.diskUsed}/${metrics.diskTotal}`} percent={diskPercent} color="bg-blue-500" />
+              <div className="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] text-gray-500 font-medium">网络</span>
+                  <span className="text-sm font-bold text-gray-100">↓{formatBytes(metrics.networkRxBytes)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                  <span>↑{formatBytes(metrics.networkTxBytes)}</span>
+                </div>
+              </div>
+            </div>
+            {/* Charts + processes */}
+            <div className="flex gap-3">
+              <div className="flex-1 bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] text-gray-400 font-medium">CPU 趋势</span>
+                </div>
+                <div className="h-16 flex items-end gap-[2px]">
+                  {cpuHistory.map((val, i) => (
+                    <div key={i} className="flex-1 bg-orange-500/60 rounded-t" style={{ height: `${Math.max(5, val)}%` }} />
+                  ))}
+                  {cpuHistory.length === 0 && Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} className="flex-1 bg-gray-800 rounded-t" style={{ height: '10%' }} />
+                  ))}
+                </div>
+              </div>
+              <div className="flex-1 bg-gray-900/80 rounded-lg p-3 border border-gray-800">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-gray-400 font-medium">进程 Top5</span>
+                </div>
+                <div className="text-[10px] text-gray-400 font-mono space-y-0.5">
+                  {processes.slice(0, 5).map((p, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="truncate max-w-[120px]">{p.command}</span>
+                      <span>{p.cpuPercent.toFixed(1)}%</span>
+                    </div>
+                  ))}
+                  {processes.length === 0 && <div className="text-gray-600">加载中...</div>}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -116,48 +160,7 @@ export function MonitorPanel({ isOpen, onToggle, connectionId }: Props) {
   )
 }
 
-function SystemCard({ metrics }: { metrics: ServerMetrics }) {
-  return (
-    <div className="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Server className="w-3.5 h-3.5 text-gray-500" />
-        <span className="text-[10px] text-gray-500 font-medium">系统概况</span>
-      </div>
-      <div className="space-y-1 text-[11px] text-gray-400">
-        <div className="flex items-center gap-1.5">
-          <User className="w-3 h-3 text-gray-500" />
-          <span className="text-gray-200 font-mono">{metrics.hostname || '-'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>内核</span>
-          <span className="text-gray-200 font-mono">{metrics.kernel || '-'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>运行时间</span>
-          <span className="text-gray-200 font-mono">{metrics.uptime || '-'}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MemoryCard({ metrics, percent }: { metrics: ServerMetrics; percent: number }) {
-  return (
-    <MetricCard label="内存" value={`${metrics.usedMemoryMB}/${metrics.totalMemoryMB}M`} percent={percent} color="bg-coconut-500">
-      <MiniSpark data={buildPercentHistory(metrics.usedMemoryMB, metrics.totalMemoryMB)} color="bg-coconut-500" />
-    </MetricCard>
-  )
-}
-
-function DiskCard({ metrics, percent }: { metrics: ServerMetrics; percent: number }) {
-  return (
-    <MetricCard label="磁盘" value={`${metrics.diskUsed}/${metrics.diskTotal}`} percent={percent} color="bg-blue-500">
-      <MiniSpark data={buildPercentHistory(parseInt(metrics.diskUsed) || 0, parseInt(metrics.diskTotal) || 1)} color="bg-blue-500" />
-    </MetricCard>
-  )
-}
-
-function MetricCard({ label, value, percent, color, children }: { label: string; value: string; percent: number; color: string; children?: React.ReactNode }) {
+function MetricCard({ label, value, percent, color }: { label: string; value: string; percent: number; color: string }) {
   return (
     <div className="bg-gray-900/80 rounded-lg p-3 border border-gray-800">
       <div className="flex items-center justify-between mb-1.5">
@@ -167,24 +170,6 @@ function MetricCard({ label, value, percent, color, children }: { label: string;
       <div className="w-full bg-gray-800 rounded-full h-1.5">
         <div className={`${color} h-1.5 rounded-full transition-all duration-500`} style={{ width: `${Math.min(100, percent)}%` }} />
       </div>
-      {children && <div className="mt-2">{children}</div>}
     </div>
   )
-}
-
-function MiniSpark({ data, color }: { data: number[]; color: string }) {
-  const values = data.length ? data : Array.from({ length: 20 }, () => 0)
-  return (
-    <div className="h-10 flex items-end gap-[2px]">
-      {values.map((val, i) => (
-        <div key={i} className={`flex-1 ${color}/70 rounded-t`} style={{ height: `${Math.max(8, val)}%` }} />
-      ))}
-    </div>
-  )
-}
-
-function buildPercentHistory(used: number, total: number): number[] {
-  if (!total) return []
-  const percent = Math.round((used / total) * 100)
-  return Array.from({ length: 20 }, () => percent)
 }

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Page, SettingsTab, BottomTab, SshConnection, AiProvider, AiChatSession, AppSettings, SftpFileInfo } from './types'
+import type { Page, SettingsTab, BottomTab, SshConnection, AiProvider, AiChatSession, AppSettings, SftpFileInfo, ServerMetrics } from './types'
 import { connectionsApi, providersApi, chatApi, sftpApi, settingsApi } from './services/api'
 import { t } from './i18n'
+import { HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
-import { MonitorPanel } from './components/MonitorPanel'
 import { TerminalArea } from './components/TerminalArea'
 import { BottomPanel } from './components/BottomPanel'
 import { SettingsPage } from './components/SettingsPage'
@@ -26,7 +26,6 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
 
   // UI state
-  const [monitorOpen, setMonitorOpen] = useState(true)
   const [bottomOpen, setBottomOpen] = useState(true)
   const [bottomTab, setBottomTab] = useState<BottomTab>('ai')
   const [bottomHeight, setBottomHeight] = useState(() => {
@@ -37,6 +36,8 @@ export default function App() {
   useEffect(() => { bottomHeightRef.current = bottomHeight }, [bottomHeight])
   const [showConnectionModal, setShowConnectionModal] = useState(false)
   const [editingConnection, setEditingConnection] = useState<SshConnection | null>(null)
+  const [metrics, setMetrics] = useState<ServerMetrics | null>(null)
+  const metricsHubRef = useRef<HubConnection | null>(null)
 
   // SFTP state
   const [sftpPath, setSftpPath] = useState('/')
@@ -105,6 +106,50 @@ export default function App() {
     setSettings(prev => prev ? { ...prev, ...data } : null)
   }, [])
 
+  // Monitor metrics hub
+  useEffect(() => {
+    if (!activeConnectionId) {
+      setMetrics(null)
+      return
+    }
+
+    const hub = new HubConnectionBuilder()
+      .withUrl('/hubs/monitor')
+      .withAutomaticReconnect()
+      .build()
+
+    hub.on('MetricsUpdate', (_connId: string, data: ServerMetrics) => {
+      setMetrics(data)
+    })
+
+    hub.on('MonitorError', (_connId: string, error: string) => {
+      console.error('Monitor error:', error)
+    })
+
+    hub.onclose(() => {
+      setMetrics(null)
+    })
+
+    hub.onreconnected(async () => {
+      try {
+        await hub.invoke('StartMonitoring', activeConnectionId, 2000)
+      } catch (e) {
+        console.error('Failed to restart monitoring after reconnect:', e)
+      }
+    })
+
+    hub.start().then(async () => {
+      try {
+        await hub.invoke('StartMonitoring', activeConnectionId, 2000)
+      } catch (e) {
+        console.error('Failed to start monitoring:', e)
+      }
+    }).catch(console.error)
+
+    metricsHubRef.current = hub
+    return () => { hub.stop() }
+  }, [activeConnectionId])
+
   return (
     <div className="bg-gray-950 text-gray-100 h-screen overflow-hidden flex font-sans">
       <Sidebar
@@ -120,14 +165,13 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0">
         <Header
           activeConnection={activeConnection}
+          metrics={metrics}
           onSettings={() => { setSettingsTab('general'); setPage('settings') }}
         />
 
         <div className="flex-1 flex flex-col min-h-0">
           {page === 'workspace' ? (
             <>
-              <MonitorPanel isOpen={monitorOpen} onToggle={() => setMonitorOpen(!monitorOpen)} connectionId={activeConnectionId} />
-
               <TerminalArea connectionId={activeConnectionId} />
 
               <div
